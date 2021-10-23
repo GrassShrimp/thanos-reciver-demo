@@ -2,9 +2,8 @@ resource "helm_release" "prometheus-operator" {
   name              = "prometheus-operator"
   repository        = "https://prometheus-community.github.io/helm-charts" 
   chart             = "kube-prometheus-stack"
-  version           = "14.4.0"
+  version           = var.PROMETHEUS_VERSION
   namespace         = "kube-mon"
-
   values = [
   <<EOF
   prometheus:
@@ -39,8 +38,8 @@ resource "helm_release" "prometheus-operator" {
     enabled: false
   EOF
   ]
-
   create_namespace  = true
-
-  depends_on = [ helm_release.thanos ]
+  depends_on = [
+    helm_release.thanos
+  ]
 }

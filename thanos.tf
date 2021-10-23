@@ -1,20 +1,16 @@
 resource "helm_release" "thanos" {
-  name              = "thanos"
-  repository        = "https://charts.bitnami.com/bitnami" 
-  chart             = "thanos"
-  version           = "3.14.1"
-  namespace         = "thanos"
-
+  name       = "thanos"
+  repository = "https://charts.bitnami.com/bitnami"
+  chart      = "thanos"
+  version    = var.THANOS_VERSION
+  namespace  = "thanos"
   values = [
-  <<EOF
+    <<EOF
   objstoreConfig: |-
-    type: s3
+    type: GCS
     config:
-      bucket: thanos
-      endpoint: {{ include "thanos.minio.fullname" . }}.thanos.svc.cluster.local:9000
-      access_key: minio
-      secret_key: minio123
-      insecure: true
+      bucket: thanos-c99c6b4736ae76bd36
+      service_account: '${replace(file("${path.root}/.keys/gcs_key.json"), "\n", "")}'
   query:
     replicaCount: 1
     replicaLabel: 
@@ -26,10 +22,18 @@ resource "helm_release" "thanos" {
   compactor:
     enabled: true
     persistence:
+      enabled: true
       storageClass: "standard"
   storegateway:
     enabled: true
     replicaCount: 1
+    persistence:
+      enabled: true
+      storageClass: "standard"
+  ruler:
+    persistence:
+      enabled: true
+      storageClass: "standard"
   receive:
     enabled: true
     replicaCount: 1
@@ -37,6 +41,7 @@ resource "helm_release" "thanos" {
       remoteWrite:
         port: 10908
     persistence:
+      enabled: true
       storageClass: "standard"
   minio:
     enabled: true
@@ -44,23 +49,83 @@ resource "helm_release" "thanos" {
       password: "minio"
     secretKey:
       password: "minio123"
-    defaultBuckets: thanos
+    defaultBuckets: thanos-c99c6b4736ae76bd36
   EOF
   ]
-
-  create_namespace  = true
-
+  create_namespace = true
   depends_on = [
-    kind_cluster.thanos-reciver
+    kind_cluster.k8s-cluster
   ]
 }
-
-resource "null_resource" "install_thanos_route" {
+resource "local_file" "thanos_route" {
+  content = <<-EOF
+  apiVersion: networking.istio.io/v1beta1
+  kind: Gateway
+  metadata:
+    name: thanos-query-frontend
+  spec:
+    selector:
+      istio: ingressgateway
+    servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+      - thanos.pinjyun.local
+  ---
+  apiVersion: networking.istio.io/v1beta1
+  kind: VirtualService
+  metadata:
+    name: thanos-query-frontend
+  spec:
+    hosts:
+    - thanos.pinjyun.local
+    gateways:
+    - thanos-query-frontend
+    http:
+    - route:
+      - destination:
+          host: thanos-query-frontend
+          port:
+            number: 9090
+  ---
+  apiVersion: networking.istio.io/v1beta1
+  kind: Gateway
+  metadata:
+    name: thanos-minio
+  spec:
+    selector:
+      istio: ingressgateway
+    servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+      - minio.pinjyun.local
+  ---
+  apiVersion: networking.istio.io/v1beta1
+  kind: VirtualService
+  metadata:
+    name: thanos-minio
+  spec:
+    hosts:
+    - minio.pinjyun.local
+    gateways:
+    - thanos-minio
+    http:
+    - route:
+      - destination:
+          host: thanos-minio
+          port:
+            number: 9001
+  EOF
+  filename = "${path.root}/configs/thanos_route.yaml"
   provisioner "local-exec" {
-    command = "kubectl apply -f ./thanos-route.yaml -n ${helm_release.thanos.namespace}"
+    command = "kubectl apply -f ${self.filename} -n ${helm_release.thanos.namespace}"
   }
-
   depends_on = [
-    null_resource.installing-istio
+    time_sleep.wait_istio_ready
   ]
 }
