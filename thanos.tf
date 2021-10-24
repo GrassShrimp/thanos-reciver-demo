@@ -72,7 +72,7 @@ resource "local_file" "thanos_route" {
         name: http
         protocol: HTTP
       hosts:
-      - thanos.pinjyun.local
+      - thanos.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
   ---
   apiVersion: networking.istio.io/v1beta1
   kind: VirtualService
@@ -80,7 +80,7 @@ resource "local_file" "thanos_route" {
     name: thanos-query-frontend
   spec:
     hosts:
-    - thanos.pinjyun.local
+    - thanos.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
     gateways:
     - thanos-query-frontend
     http:
@@ -103,7 +103,7 @@ resource "local_file" "thanos_route" {
         name: http
         protocol: HTTP
       hosts:
-      - minio.pinjyun.local
+      - minio.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
   ---
   apiVersion: networking.istio.io/v1beta1
   kind: VirtualService
@@ -111,7 +111,7 @@ resource "local_file" "thanos_route" {
     name: thanos-minio
   spec:
     hosts:
-    - minio.pinjyun.local
+    - minio.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
     gateways:
     - thanos-minio
     http:
