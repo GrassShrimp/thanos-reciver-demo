@@ -23,12 +23,12 @@ terraform {
   }
 }
 provider "kubernetes" {
-  config_context = kind_cluster.k8s-cluster.context
+  config_context = module.kind-istio-metallb.config_context
   config_path    = "~/.kube/config"
 }
 provider "helm" {
   kubernetes {
-    config_context = kind_cluster.k8s-cluster.context
+    config_context = module.kind-istio-metallb.config_context
     config_path    = "~/.kube/config"
   }
 }

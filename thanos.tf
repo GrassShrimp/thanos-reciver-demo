@@ -54,7 +54,7 @@ resource "helm_release" "thanos" {
   ]
   create_namespace = true
   depends_on = [
-    kind_cluster.k8s-cluster
+    module.kind-istio-metallb
   ]
 }
 resource "local_file" "thanos_route" {
@@ -72,7 +72,7 @@ resource "local_file" "thanos_route" {
         name: http
         protocol: HTTP
       hosts:
-      - thanos.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
+      - thanos.${module.kind-istio-metallb.ingress_ip_address}.nip.io
   ---
   apiVersion: networking.istio.io/v1beta1
   kind: VirtualService
@@ -80,7 +80,7 @@ resource "local_file" "thanos_route" {
     name: thanos-query-frontend
   spec:
     hosts:
-    - thanos.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
+    - thanos.${module.kind-istio-metallb.ingress_ip_address}.nip.io
     gateways:
     - thanos-query-frontend
     http:
@@ -103,7 +103,7 @@ resource "local_file" "thanos_route" {
         name: http
         protocol: HTTP
       hosts:
-      - minio.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
+      - minio.${module.kind-istio-metallb.ingress_ip_address}.nip.io
   ---
   apiVersion: networking.istio.io/v1beta1
   kind: VirtualService
@@ -111,7 +111,7 @@ resource "local_file" "thanos_route" {
     name: thanos-minio
   spec:
     hosts:
-    - minio.${data.kubernetes_service.istio-ingressgateway.status.0.load_balancer.0.ingress.0.ip}.nip.io
+    - minio.${module.kind-istio-metallb.ingress_ip_address}.nip.io
     gateways:
     - thanos-minio
     http:
@@ -126,6 +126,7 @@ resource "local_file" "thanos_route" {
     command = "kubectl apply -f ${self.filename} -n ${helm_release.thanos.namespace}"
   }
   depends_on = [
-    time_sleep.wait_istio_ready
+    module.kind-istio-metallb,
+    helm_release.thanos
   ]
 }
